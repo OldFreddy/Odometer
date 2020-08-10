@@ -25,6 +25,8 @@ public class OdometerService extends Service {
     private LocationListener listener;
     private LocationManager locManager;
 
+    public static boolean pauseFlag = false;
+
     public static final String PERMISSION_STRING = Manifest.permission.ACCESS_FINE_LOCATION;
 
     @Override
@@ -33,10 +35,14 @@ public class OdometerService extends Service {
         listener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
-                if (lastLocation == null){
+                if (pauseFlag) {
+                    if (lastLocation == null) {
+                        lastLocation = location;
+                    }
+                    distanceInMeters += location.distanceTo(lastLocation);
                     lastLocation = location;
                 }
-                distanceInMeters += location.distanceTo(lastLocation);
+
             }
 
             @Override
@@ -56,15 +62,13 @@ public class OdometerService extends Service {
         };
 
         locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        if (ContextCompat.checkSelfPermission(this, PERMISSION_STRING) == PackageManager.PERMISSION_GRANTED){
+        if (ContextCompat.checkSelfPermission(this, PERMISSION_STRING) == PackageManager.PERMISSION_GRANTED) {
             String provider = locManager.getBestProvider(new Criteria(), true);
-            if (provider != null){
-                locManager.requestLocationUpdates(provider, 1000,1,listener);
+            if (provider != null) {
+                locManager.requestLocationUpdates(provider, 1000, 1, listener);
             }
         }
     }
-
-
 
 
     public class OdometerBinder extends Binder {
@@ -84,8 +88,8 @@ public class OdometerService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (locManager != null && listener !=null){
-            if (ContextCompat.checkSelfPermission(this, PERMISSION_STRING)==PackageManager.PERMISSION_GRANTED){
+        if (locManager != null && listener != null) {
+            if (ContextCompat.checkSelfPermission(this, PERMISSION_STRING) == PackageManager.PERMISSION_GRANTED) {
                 locManager.removeUpdates(listener);
             }
             locManager = null;
@@ -97,5 +101,13 @@ public class OdometerService extends Service {
 
         return distanceInMeters;
     }
+
+    public static void setDistance(double distance) {
+        distanceInMeters = distance;
+    }
+    public static void setLastLocation(){
+        lastLocation = null;
+    }
+
 
 }

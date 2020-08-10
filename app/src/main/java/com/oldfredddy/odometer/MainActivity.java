@@ -18,7 +18,10 @@ import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.w3c.dom.Text;
 
@@ -29,9 +32,14 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
     private final int PERMISSION_REQUEST_CODE = 698;
     private final int NOTIFICATION_ID = 423;
-
     private OdometerService odometer;
     private boolean bound = false;
+
+    Button startButton;
+    Button pauseButton;
+    Button stopButton;
+
+    int indicator = 0; //0 = stop, 1 = start, 2 = pause
 
     private ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -53,14 +61,44 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         displayDistance();
 
+//        //Обработчики нажатия на кнопку
+        startButton = findViewById(R.id.button_start);
+        pauseButton = findViewById(R.id.button_pause);
+        stopButton = findViewById(R.id.button_stop);
+
+        startButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                indicator = 1;
+                Toast.makeText(MainActivity.this, "START", Toast.LENGTH_SHORT).show();
+            }
+        });
+        stopButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                indicator = 0;
+                Toast.makeText(MainActivity.this, String.valueOf(indicator), Toast.LENGTH_SHORT).show();
+            }
+        });
+        pauseButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                indicator = 2;
+                Toast.makeText(MainActivity.this, "PAUSE", Toast.LENGTH_SHORT).show();
+            }
+        });
+
     }
 
     @Override
     protected void onStart() {
         super.onStart();
 
-        if (ContextCompat.checkSelfPermission(this, OdometerService.PERMISSION_STRING) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{OdometerService.PERMISSION_STRING}, PERMISSION_REQUEST_CODE);
+        if (ContextCompat.checkSelfPermission(this, OdometerService.PERMISSION_STRING)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{OdometerService.PERMISSION_STRING},
+                    PERMISSION_REQUEST_CODE);
         } else {
             Intent intent = new Intent(this, OdometerService.class);
             bindService(intent, connection, Context.BIND_AUTO_CREATE);
@@ -85,11 +123,13 @@ public class MainActivity extends AppCompatActivity {
                             .setAutoCancel(true);
                     //Создание действия
                     Intent actionIntent = new Intent(this, MainActivity.class);
-                    PendingIntent actionPendingIntent = PendingIntent.getActivity(this, 0, actionIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+                    PendingIntent actionPendingIntent = PendingIntent.getActivity(this,
+                            0, actionIntent, PendingIntent.FLAG_UPDATE_CURRENT);
                     builder.setContentIntent(actionPendingIntent);
 
                     //Выдача уведомления
-                    NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                    NotificationManager notificationManager =
+                            (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
                     notificationManager.notify(NOTIFICATION_ID, builder.build());
                 }
             }
@@ -115,16 +155,25 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 double distance = 0.0;
-                Location startLocation = null;
 
-                if (bound && odometer != null) {
+                if ((bound && odometer != null) && indicator == 1) {
+
+                    OdometerService.pauseFlag = true;
                     distance = odometer.getDistance();
                     String splitNumber = splitNum.getText().toString();
                     int splitNumInt = Integer.parseInt(splitNumber);
                     distance = distance / splitNumInt;
+                    String distanceStr = String.format(Locale.getDefault(), "%1.3f m", distance);
+                    distanceView.setText(distanceStr);
+                } else if (indicator == 0) {
+                    OdometerService.pauseFlag = false;
+                    OdometerService.setDistance(0.0);
+                    distanceView.setText("0.0");
+                } else if (indicator == 2) {
+                    OdometerService.pauseFlag = false;
+                    OdometerService.setLastLocation();
                 }
-                String distanceStr = String.format(Locale.getDefault(), "%1.3f m", distance);
-                distanceView.setText(distanceStr);
+
                 //distanceView.setText((result.setScale(2,RoundingMode.HALF_EVEN)).toString());
                 handler.postDelayed(this, 1000);
             }
